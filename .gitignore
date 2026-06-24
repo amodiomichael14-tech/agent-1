@@ -1,0 +1,11 @@
+# Secrets — never commit these
+.env
+
+# Local send history (so re-runs don't double-send)
+sent_log.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

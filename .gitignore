@@ -1,7 +1,8 @@
 # Secrets — never commit these
 .env
 
-# Local send history (so re-runs don't double-send)
+# Local working files (contain your recipient list / drafts)
+drafts/
 sent_log.csv
 
 # Python

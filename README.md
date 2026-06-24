@@ -1,8 +1,8 @@
 # Cold Email Agent
 
-Give it a list of email addresses. It writes a **custom** cold email for each
-one with Claude. You **review the drafts**, approve the ones you like, and it
-sends only those — through **SendGrid**.
+Give it a CSV of leads (email + optional name, company, and notes). It writes a
+**personalized** cold email for each one with Claude. You **review the drafts**,
+approve the ones you like, and it sends only those from your **Gmail** account.
 
 Nothing is ever sent without your explicit approval.
 
@@ -12,13 +12,14 @@ Nothing is ever sent without your explicit approval.
 
 ```
 1. GENERATE   python send_emails.py
-              → writes one draft per recipient into drafts/ (each "Approved: no")
+              → writes one draft per lead into drafts/ (each "Approved: no")
 
 2. REVIEW     open the files in drafts/, read them, edit if you want, and change
               "Approved: no" → "Approved: yes" on the ones you want to send
 
 3. SEND       python send_emails.py --send
-              → sends ONLY the approved drafts, then moves them to drafts/sent/
+              → sends ONLY the approved drafts via Gmail, then moves them
+                to drafts/sent/
 ```
 
 Check progress any time with `python send_emails.py --status`.
@@ -29,8 +30,7 @@ Check progress any time with `python send_emails.py --status`.
 
 1. **Python 3.9+**
 2. An **Anthropic API key** — https://console.anthropic.com/ → API Keys
-3. A **SendGrid account** with an API key and a verified sender (free tier
-   sends ~100 emails/day)
+3. A **Gmail App Password** (see below)
 
 ---
 
@@ -39,29 +39,46 @@ Check progress any time with `python send_emails.py --status`.
 ```bash
 pip install -r requirements.txt
 cp .env.example .env
-#   then open .env and fill in your keys (see below)
+#   then open .env and add your API key, Gmail address, and App Password
 ```
 
-### SendGrid setup
+### Getting a Gmail App Password
 
-1. Create a free account: https://signup.sendgrid.com/
-2. **Verify a sender or domain** — Settings → *Sender Authentication*. SendGrid
-   will not deliver mail "from" an address you haven't verified. Verifying a
-   whole domain gives the best deliverability; a single verified sender is the
-   quickest start.
-3. Create an API key — Settings → *API Keys* → give it **Mail Send** access.
-4. Put the key in `.env` as `SENDGRID_API_KEY`, and put your verified address
-   in `FROM_EMAIL`.
+A normal Gmail password won't work for sending via a script — Google requires an
+"App Password". About 2 minutes:
+
+1. Turn on **2-Step Verification**: https://myaccount.google.com/security
+2. Go to **App Passwords**: https://myaccount.google.com/apppasswords
+3. Create one (name it e.g. `cold-emailer`) and copy the 16-character code.
+4. Paste it into `.env` as `GMAIL_APP_PASSWORD` (the spaces are fine).
+
+---
+
+## Your leads file (`leads.csv`)
+
+A CSV with a header row. **Only `email` is required** — `name`, `company`, and
+`notes` are optional, and the more you fill in, the more personalized each email
+gets. The `notes` field is the secret weapon: Claude weaves it in naturally.
+
+```csv
+email,name,company,notes
+jane.doe@acme.com,Jane Doe,Acme Co,Runs the online store; site is slow on mobile
+mike@brightlabs.io,Mike,Bright Labs,Met briefly at the Denver meetup
+owner@corner-bakery.com,,Corner Bakery,No website yet; found them on Google Maps
+```
+
+Rows whose email starts with `#` are ignored, so you can keep notes-to-self in
+the file. If you only have addresses, a one-column list works too — Claude will
+infer a likely name/company from each address as a fallback.
 
 ---
 
 ## Use it
 
 **1. Edit your pitch** — open `prompt.md` and describe who you are, what you're
-offering, and the tone you want. This is the part you'll tweak most. Change it
-any time; the next run uses whatever's there.
+offering, and the tone you want. Change it any time; the next run uses it.
 
-**2. Add your list** — one email address per line in `recipients.txt`.
+**2. Add your leads** to `leads.csv`.
 
 **3. Generate drafts:**
 
@@ -69,11 +86,9 @@ any time; the next run uses whatever's there.
 python send_emails.py
 ```
 
-This creates `drafts/<address>.txt`, one per recipient. Each looks like:
+This creates `drafts/<address>.txt`, one per lead. Each looks like:
 
 ```
-# Review this email. To approve it for sending, change "Approved: no" to "Approved: yes".
-# You can freely edit the Subject line and the body below the --- line.
 To: jane.doe@acme.com
 Subject: A quick idea for Acme's website
 Approved: no
@@ -101,7 +116,7 @@ Only drafts marked `Approved: yes` go out. Each sent email is logged to
 
 | Command | What it does |
 | --- | --- |
-| `python send_emails.py` | Generate drafts for new recipients |
+| `python send_emails.py` | Generate drafts for new leads |
 | `python send_emails.py --status` | Show pending / approved / sent counts |
 | `python send_emails.py --send` | Send the approved drafts |
 | `python send_emails.py --limit 5` | Only generate the first 5 (handy for testing) |
@@ -113,14 +128,12 @@ Only drafts marked `Approved: yes` go out. Each sent email is logged to
 
 - **No double-sends.** Sent addresses are recorded in `sent_log.csv` and skipped
   on future runs. Generating again won't overwrite drafts you've edited (use
-  `--regenerate` if you want a fresh draft).
-- **Personalization from email-only.** From `jane.doe@acme.com` it infers a
-  likely name ("Jane Doe") and company ("Acme") as *hints* for Claude, which
-  falls back to a neutral greeting when a guess looks off. The more detail you
-  put in `prompt.md`, the better every email reads.
+  `--regenerate` for a fresh draft).
 - **Cost.** Each draft is one short Claude call. `claude-opus-4-8` (default) is
   the most capable; for big lists set `MODEL=claude-haiku-4-5` in `.env` to cut
   cost a lot.
+- **Sending limits.** Gmail caps daily sends (~500/day for free Gmail, ~2,000 for
+  Workspace). For large lists, send in batches with `--limit`.
 
 ---
 

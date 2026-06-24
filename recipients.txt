@@ -1,7 +1,0 @@
-# One email address per line.
-# Lines starting with "#" and blank lines are ignored.
-# Delete these examples and paste in your real list.
-#
-# jane.doe@acme.com
-# mike@brightlabs.io
-# owner@corner-bakery.com

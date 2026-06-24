@@ -1,0 +1,7 @@
+email,name,company,notes
+# Replace the example rows below with your real leads.
+# Only "email" is required — name, company, and notes are all optional.
+# Any row whose email starts with "#" is ignored.
+# jane.doe@acme.com,Jane Doe,Acme Co,Runs the online store; site looks slow on mobile
+# mike@brightlabs.io,Mike,Bright Labs,Met briefly at the Denver meetup last month
+# owner@corner-bakery.com,,Corner Bakery,No website yet; found them on Google Maps

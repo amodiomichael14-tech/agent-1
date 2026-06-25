@@ -1,28 +1,17 @@
-# Cold Email Agent
+# Cold Email Studio
 
-Give it a CSV of leads (email + optional name, company, and notes). It writes a
-**personalized** cold email for each one with Claude. You **review the drafts**,
-approve the ones you like, and it sends only those from your **Gmail** account.
+Write **personalized** cold emails with Claude, **review** them, and send the
+ones you like from your **Gmail** — all from a clean web page. Nothing is ever
+sent without your explicit approval.
 
-Nothing is ever sent without your explicit approval.
+You can use it two ways:
 
----
+- **🌐 Website** (recommended) — `python app.py`, then open it in your browser.
+- **⌨️ Command line** — `python send_emails.py` (drafts to files you approve).
 
-## How it works (3 steps)
+Both share the same engine; pick whichever you prefer.
 
-```
-1. GENERATE   python send_emails.py
-              → writes one draft per lead into drafts/ (each "Approved: no")
-
-2. REVIEW     open the files in drafts/, read them, edit if you want, and change
-              "Approved: no" → "Approved: yes" on the ones you want to send
-
-3. SEND       python send_emails.py --send
-              → sends ONLY the approved drafts via Gmail, then moves them
-                to drafts/sent/
-```
-
-Check progress any time with `python send_emails.py --status`.
+![Cold Email Studio](docs/screenshot.png)
 
 ---
 
@@ -30,118 +19,101 @@ Check progress any time with `python send_emails.py --status`.
 
 1. **Python 3.9+**
 2. An **Anthropic API key** — https://console.anthropic.com/ → API Keys
-3. A **Gmail App Password** (see below)
+3. A **Gmail App Password** (2-minute setup, see below)
 
 ---
 
-## Setup (one time)
+## Run the website
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
-#   then open .env and add your API key, Gmail address, and App Password
+python app.py
 ```
+
+Then open **http://localhost:5000** in your browser. From there:
+
+1. **Settings** — paste your Anthropic key, Gmail address, and Gmail App
+   Password. (Your keys are held in server memory for the session only — never
+   written to a file, never sent back to the page.)
+2. **Pitch & leads** — describe what you're offering, add your leads (type them
+   in or *Paste CSV*), and click **Generate drafts**.
+3. **Review & send** — edit any email, uncheck any you don't want, and hit
+   **Send approved emails**.
+
+Want it to remember *your* keys so you don't retype them? Copy `.env.example` to
+`.env` and fill it in — those values pre-fill the Settings panel for you. (`.env`
+is git-ignored.)
 
 ### Getting a Gmail App Password
 
-A normal Gmail password won't work for sending via a script — Google requires an
-"App Password". About 2 minutes:
+A normal Gmail password won't work from a script — Google requires an "App
+Password":
 
 1. Turn on **2-Step Verification**: https://myaccount.google.com/security
-2. Go to **App Passwords**: https://myaccount.google.com/apppasswords
-3. Create one (name it e.g. `cold-emailer`) and copy the 16-character code.
-4. Paste it into `.env` as `GMAIL_APP_PASSWORD` (the spaces are fine).
+2. Open **App Passwords**: https://myaccount.google.com/apppasswords
+3. Create one and copy the 16-character code (the spaces are fine).
 
 ---
 
-## Your leads file (`leads.csv`)
+## Put it online so others can use it
 
-A CSV with a header row. **Only `email` is required** — `name`, `company`, and
-`notes` are optional, and the more you fill in, the more personalized each email
-gets. The `notes` field is the secret weapon: Claude weaves it in naturally.
+Running `python app.py` only works while *your* computer is on. To give it a
+public link anyone can visit, deploy it to a host. It's a standard Flask app, so
+most platforms work; here's the short version for **Render** (has a free tier):
 
-```csv
-email,name,company,notes
-jane.doe@acme.com,Jane Doe,Acme Co,Runs the online store; site is slow on mobile
-mike@brightlabs.io,Mike,Bright Labs,Met briefly at the Denver meetup
-owner@corner-bakery.com,,Corner Bakery,No website yet; found them on Google Maps
-```
+1. Push this repo to GitHub (already done if you're reading this there).
+2. Create a free account at https://render.com → **New → Web Service** → connect
+   this repo.
+3. Render auto-detects Python. Confirm:
+   - **Build command:** `pip install -r requirements.txt`
+   - **Start command:** `gunicorn app:app --workers 1 --timeout 120`
+     (also provided in the `Procfile`).
+4. Add an environment variable **`FLASK_SECRET_KEY`** set to any long random
+   string (keeps sessions stable across restarts).
+5. Deploy. You'll get a `https://your-app.onrender.com` link to share.
 
-Rows whose email starts with `#` are ignored, so you can keep notes-to-self in
-the file. If you only have addresses, a one-column list works too — Claude will
-infer a likely name/company from each address as a fallback.
+Because everyone enters their **own** keys in Settings, visitors generate with
+their own Anthropic credits and send from their own Gmail — you're not paying
+for or sending on behalf of anyone else.
+
+> Notes: the app keeps each visitor's settings in memory, so run a **single
+> worker** (as above). For heavier use you'd move sessions to a shared store
+> (Redis) and add real accounts — happy to help with that when you need it.
 
 ---
 
-## Use it
+## Command-line version (optional)
 
-**1. Edit your pitch** — open `prompt.md` and describe who you are, what you're
-offering, and the tone you want. Change it any time; the next run uses it.
-
-**2. Add your leads** to `leads.csv`.
-
-**3. Generate drafts:**
+Prefer the terminal? The same engine works as a 3-step CLI:
 
 ```bash
-python send_emails.py
+python send_emails.py            # 1. writes one draft per lead into drafts/
+#                                  2. review drafts/, change "Approved: no" -> "yes"
+python send_emails.py --send      # 3. sends only the approved drafts
+python send_emails.py --status    # counts: pending / approved / sent
 ```
 
-This creates `drafts/<address>.txt`, one per lead. Each looks like:
-
-```
-To: jane.doe@acme.com
-Subject: A quick idea for Acme's website
-Approved: no
----
-Hi Jane,
-
-...the email...
-
-— Your Name
-```
-
-**4. Review** — read each draft. Edit the subject or body however you like.
-Change `Approved: no` to `Approved: yes` for every email you want to send.
-
-**5. Send the approved ones:**
-
-```bash
-python send_emails.py --send
-```
-
-Only drafts marked `Approved: yes` go out. Each sent email is logged to
-`sent_log.csv` and its draft is moved to `drafts/sent/`.
-
-### Commands
-
-| Command | What it does |
-| --- | --- |
-| `python send_emails.py` | Generate drafts for new leads |
-| `python send_emails.py --status` | Show pending / approved / sent counts |
-| `python send_emails.py --send` | Send the approved drafts |
-| `python send_emails.py --limit 5` | Only generate the first 5 (handy for testing) |
-| `python send_emails.py --regenerate` | Re-draft even if a draft already exists |
+Leads come from `leads.csv` (columns: `email` required; `name`, `company`,
+`notes` optional). The pitch lives in `prompt.md`.
 
 ---
 
 ## Good to know
 
-- **No double-sends.** Sent addresses are recorded in `sent_log.csv` and skipped
-  on future runs. Generating again won't overwrite drafts you've edited (use
-  `--regenerate` for a fresh draft).
-- **Cost.** Each draft is one short Claude call. `claude-opus-4-8` (default) is
-  the most capable; for big lists set `MODEL=claude-haiku-4-5` in `.env` to cut
-  cost a lot.
-- **Sending limits.** Gmail caps daily sends (~500/day for free Gmail, ~2,000 for
-  Workspace). For large lists, send in batches with `--limit`.
+- **Cost.** Each email is one short Claude call. `claude-opus-4-8` (default) is
+  the most capable; pick **Haiku** in the model dropdown (or set
+  `MODEL=claude-haiku-4-5` in `.env`) to cut cost a lot on big lists.
+- **Sending limits.** Gmail caps daily sends (~500/day for free Gmail, ~2,000
+  for Workspace). Send big lists in batches.
+- **No double-sends (CLI).** The CLI logs sent addresses to `sent_log.csv` and
+  skips them next time.
 
 ---
 
 ## Please send responsibly
 
-Cold outreach is legal in many places **with** a few basics, and good practice
-everywhere: email people who plausibly want to hear from you, say who you are,
-honor opt-outs and replies immediately, and include a real mailing address plus
-an unsubscribe line (set `EMAIL_FOOTER` in `.env` to add one to every message).
-Rules like CAN-SPAM (US), CASL (Canada), and GDPR/PECR (EU/UK) may apply — check
-what's required for your audience.
+Cold outreach is legal in many places **with** a few basics: email people who
+plausibly want to hear from you, say who you are, honor opt-outs and replies
+immediately, and include a real mailing address plus an unsubscribe line (use
+the **Footer** field / `EMAIL_FOOTER`). Rules like CAN-SPAM (US), CASL (Canada),
+and GDPR/PECR (EU/UK) may apply — check what's required for your audience.
